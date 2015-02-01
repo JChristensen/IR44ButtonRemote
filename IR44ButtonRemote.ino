@@ -111,7 +111,6 @@ void setup(void)
   Serial.begin(115200);
 
   myRemote.beginIR();
-  attachInterrupt (0, irISR, FALLING);  // attach IR interrupt handler using D2
 
 } 
 // ************************** E N D   s e t u p ( ) *****************************
@@ -152,19 +151,6 @@ void loop(void)
 // ************************** E N D   l o o p ( ) *****************************
 
 
-//=============================================================================
-//                            F U N C T I O N S
-//=============================================================================
-
-
-//*****************************************************************************    
-// Interrupt Service Routine (ISR)
-void irISR()
-{
-  //Flag that we have seen a falling edge
-  myRemote.setEdgeTime();
-
-} // END of irISR()
 
 
 

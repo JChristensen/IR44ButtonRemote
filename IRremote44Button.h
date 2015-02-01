@@ -1,5 +1,17 @@
+#include <Arduino.h>
+#include <util/atomic.h>
 
-#include <Arduino.h> 
+//=============================================================================
+//                    F U N C T I O N    P R O T O T Y P E S
+//=============================================================================
+void irISR(void);
+
+//======== VARIABLES USED BY THE ISR -- Must be accessed atomically!
+volatile byte irFlag;
+volatile unsigned long thisMicros;
+
+//======== LOCAL COPIES OF ISR VARIABLES ========
+unsigned long thisMicrosLocal;
 
 //********************************************************** 
 class IRremote44Button
@@ -7,10 +19,8 @@ class IRremote44Button
   byte IRpin_;
   byte counter;
   boolean validStart;
-  unsigned long thisMicros;
   unsigned long lastMicros;
   unsigned long startMillis;
-  byte irFlag;
   int data[4];
 
 public:
@@ -28,8 +38,12 @@ public:
     pinMode(IRpin_, INPUT_PULLUP);
     counter = 0;
     validStart = false;
-    thisMicros = micros();
+    thisMicrosLocal = micros();
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+        thisMicros = thisMicrosLocal;
+    }
     irFlag = 0;
+    attachInterrupt (0, irISR, FALLING);  // attach IR interrupt handler using D2
 
   } //END of IRremote44Button()
 
@@ -48,14 +62,14 @@ public:
   } //END of resetIRflag()
 
   //**********************************************************  
-  void setEdgeTime()
-  {
-    //record the time the edge happened
-    thisMicros = micros();
-    //Flag that the an edge has happened
-    irFlag = 1;
-
-  } //END of setEdgeTime()
+//  void setEdgeTime()  -- UNNECESSARY, PUT CODE DIRECTLY IN ISR
+//  {
+//    //record the time the edge happened
+//    thisMicros = micros();
+//    //Flag that the an edge has happened
+//    irFlag = 1;
+//
+//  } //END of setEdgeTime()
 
   //**********************************************************  
 
@@ -65,7 +79,10 @@ public:
     byte rxBit = 0;         //the value of the received bit
 
     //Calculate the time between the last two falling edges.
-    unsigned long temp = thisMicros - lastMicros;
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+        thisMicrosLocal = thisMicros;
+    }
+    unsigned long temp = thisMicrosLocal - lastMicros;
 
     //Are we over the start bit upper limit of 13.8mS for the 44 button IR remote code?
     if (temp > 13800)
@@ -146,7 +163,10 @@ public:
     } //END of if(validStart == true && (temp > 900) && (temp < 2500))
 
     //Save the time when the last edge happened.
-    lastMicros = thisMicros;
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+        thisMicrosLocal = thisMicros;
+    }
+    lastMicros = thisMicrosLocal;
 
     return byteRecived;
 
@@ -155,6 +175,19 @@ public:
 };  // END of  IRremote44Button class 
 
 // In C++ you must have a ; at the end of a class definition
+
+//=============================================================================
+//                      H E L P E R    F U N C T I O N S
+//=============================================================================
+
+
+//*****************************************************************************    
+// Interrupt Service Routine (ISR)
+void irISR()
+{
+    irFlag = 1;                //Flag that we have seen a falling edge
+    thisMicros = micros();     //record the time the edge happened
+} // END of irISR()
 
 
 
